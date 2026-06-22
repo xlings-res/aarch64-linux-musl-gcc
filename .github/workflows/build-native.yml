@@ -1,0 +1,78 @@
+name: build-native-aarch64-toolchain
+
+# Builds the NATIVE aarch64 musl-gcc toolchain (build=host=target=aarch64) on a
+# native ARM64 runner via musl-cross-make, then attaches it to the release as
+# the host=aarch64 asset. Together with the existing host=x86_64 cross asset,
+# this lets `xim:aarch64-linux-musl-gcc` serve BOTH cross (on x86) and native
+# (on aarch64) — XLINGS_RES picks the host-matching one. Enables `mcpp build`
+# (and self-hosting mcpp/xlings) natively on aarch64 / Termux.
+
+on:
+  workflow_dispatch:
+    inputs:
+      gcc_ver:
+        description: "GCC version"
+        default: "15.1.0"
+      tag:
+        description: "Release tag to upload to"
+        default: "15.1.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    timeout-minutes: 180
+    steps:
+      - name: Install build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential git wget rsync bzip2 xz-utils file
+
+      - name: Build native aarch64-linux-musl gcc via musl-cross-make
+        env:
+          GCC_VER: ${{ github.event.inputs.gcc_ver }}
+        run: |
+          git clone --depth 1 https://github.com/richfelker/musl-cross-make /tmp/mcm
+          cd /tmp/mcm
+          OUT="$PWD/out/aarch64-linux-musl-gcc-${GCC_VER}-linux-aarch64"
+          mkdir -p "$(dirname "$OUT")"
+          cat > config.mak <<EOF
+          GCC_VER = ${GCC_VER}
+          TARGET = aarch64-linux-musl
+          OUTPUT = ${OUT}
+          EOF
+          make -j"$(nproc)"
+          # libcc1 (GDB plugin) is non-essential and sometimes fails to install;
+          # -k installs everything else (binutils, gcc, libstdc++, musl, headers).
+          make -k install OUTPUT="${OUT}" || true
+          test -x "${OUT}/bin/aarch64-linux-musl-g++"
+          "${OUT}/bin/aarch64-linux-musl-g++" --version | head -1
+          # std module source (import std) must be present
+          test -f "${OUT}/aarch64-linux-musl/include/c++/${GCC_VER}/bits/std.cc"
+          echo "OUT=${OUT}" >> "$GITHUB_ENV"
+
+      - name: Smoke-test native build + import std
+        run: |
+          GXX="${OUT}/bin/aarch64-linux-musl-g++"
+          t=$(mktemp -d); cd "$t"
+          printf 'import std;\nint main(){ std::println("native aarch64 import std ok"); }\n' > m.cpp
+          STDCC=$(find "${OUT}" -name std.cc -path '*bits*' | head -1)
+          "$GXX" -std=c++23 -fmodules-ts -c "$STDCC" -o std.o
+          "$GXX" -std=c++23 -fmodules-ts m.cpp std.o -static -o hello
+          file hello | grep -q "ARM aarch64"
+          ./hello
+
+      - name: Package + upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GCC_VER: ${{ github.event.inputs.gcc_ver }}
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          cd "$(dirname "${OUT}")"
+          NAME="aarch64-linux-musl-gcc-${GCC_VER}-linux-aarch64"
+          tar -czf "${NAME}.tar.gz" "${NAME}"
+          sha256sum "${NAME}.tar.gz" | awk '{print $1}' > "${NAME}.tar.gz.sha256"
+          ls -lh "${NAME}.tar.gz"
+          gh release upload "${TAG}" --repo "${{ github.repository }}" \
+            "${NAME}.tar.gz" "${NAME}.tar.gz.sha256" --clobber
