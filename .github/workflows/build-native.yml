@@ -41,6 +41,9 @@ jobs:
           GCC_VER = ${GCC_VER}
           TARGET = aarch64-linux-musl
           OUTPUT = ${OUT}
+          # Static toolchain binaries: run on any aarch64 userland (glibc,
+          # musl, bionic/Termux) with no loader dependency.
+          COMMON_CONFIG += CC="gcc -static --static" CXX="g++ -static --static"
           EOF
           make -j"$(nproc)"
           # libcc1 (GDB plugin) is non-essential and sometimes fails to install;
