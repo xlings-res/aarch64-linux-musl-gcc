@@ -33,6 +33,9 @@ jobs:
         env:
           GCC_VER: ${{ github.event.inputs.gcc_ver }}
         run: |
+          # GNU ftpmirror redirects to random mirrors, some IPv6-only and dead
+          # (mirror.latigo.net "Network is unreachable"). Force IPv4 + retries.
+          printf 'inet4_only = on\ntries = 8\ntimeout = 25\nwaitretry = 5\n' > "$HOME/.wgetrc"
           git clone --depth 1 https://github.com/richfelker/musl-cross-make /tmp/mcm
           cd /tmp/mcm
           OUT="$PWD/out/aarch64-linux-musl-gcc-${GCC_VER}-linux-aarch64"
