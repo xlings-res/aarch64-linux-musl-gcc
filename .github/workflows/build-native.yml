@@ -42,7 +42,8 @@ jobs:
           # GCC releases need their sha1 injected so the download rule exists.
           if [ ! -f "hashes/gcc-${GCC_VER}.tar.xz.sha1" ]; then
             echo "injecting hash for gcc-${GCC_VER}"
-            wget -q "https://ftpmirror.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}.tar.xz" -O "/tmp/gcc-${GCC_VER}.tar.xz"
+            wget -q "https://mirrors.kernel.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}.tar.xz" -O "/tmp/gcc-${GCC_VER}.tar.xz" \
+              || wget -q "https://ftp.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}.tar.xz" -O "/tmp/gcc-${GCC_VER}.tar.xz"
             mkdir -p sources hashes
             cp "/tmp/gcc-${GCC_VER}.tar.xz" sources/
             (cd sources && sha1sum "gcc-${GCC_VER}.tar.xz") > "hashes/gcc-${GCC_VER}.tar.xz.sha1"
