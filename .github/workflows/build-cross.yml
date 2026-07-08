@@ -37,6 +37,15 @@ jobs:
           printf 'inet4_only = on\ntries = 8\ntimeout = 25\nwaitretry = 5\n' > "$HOME/.wgetrc"
           git clone --depth 1 https://github.com/richfelker/musl-cross-make /tmp/mcm
           cd /tmp/mcm
+          # musl-cross-make only carries hashes for versions it knows; newer
+          # GCC releases need their sha1 injected so the download rule exists.
+          if [ ! -f "hashes/gcc-${GCC_VER}.tar.xz.sha1" ]; then
+            echo "injecting hash for gcc-${GCC_VER}"
+            wget -q "https://ftpmirror.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}.tar.xz" -O "/tmp/gcc-${GCC_VER}.tar.xz"
+            mkdir -p sources hashes
+            cp "/tmp/gcc-${GCC_VER}.tar.xz" sources/
+            (cd sources && sha1sum "gcc-${GCC_VER}.tar.xz") > "hashes/gcc-${GCC_VER}.tar.xz.sha1"
+          fi
           OUT="$PWD/out/aarch64-linux-musl-gcc-${GCC_VER}-linux-x86_64"
           mkdir -p "$(dirname "$OUT")"
           cat > config.mak <<EOF
