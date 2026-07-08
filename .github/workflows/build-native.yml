@@ -69,6 +69,23 @@ jobs:
           "${OUT}/bin/aarch64-linux-musl-g++" --version | head -1
           # std module source (import std) must be present
           test -f "${OUT}/aarch64-linux-musl/include/c++/${GCC_VER}/bits/std.cc"
+          # ── Strip before packaging ──────────────────────────────────
+          # Unstripped GCC ships ~850MB of debug info (cc1plus alone is
+          # hundreds of MB); 15.1.0's hand-stripped cross asset was 94MB.
+          # Host ELF (by file(1) arch) gets --strip-unneeded via the
+          # matching strip; target static archives / crt objects only lose
+          # debug sections (--strip-unneeded would gut their symbol tables).
+          TGT_STRIP="${OUT}/bin/aarch64-linux-musl-strip"
+          find "${OUT}" -type f \( -perm -u+x -o -name '*.so*' \) | while read -r f; do
+            case "$(file -b "$f")" in
+              ELF*x86-64*)  strip --strip-unneeded "$f" 2>/dev/null || true ;;
+              ELF*aarch64*) "$TGT_STRIP" --strip-unneeded "$f" 2>/dev/null \
+                              || strip --strip-unneeded "$f" 2>/dev/null || true ;;
+            esac
+          done
+          find "${OUT}" -name '*.a' -exec "$TGT_STRIP" --strip-debug {} + 2>/dev/null || true
+          find "${OUT}" -name '*.o' -exec "$TGT_STRIP" --strip-debug {} + 2>/dev/null || true
+          du -sh "${OUT}"
           echo "OUT=${OUT}" >> "$GITHUB_ENV"
 
       - name: Smoke-test native build + import std
