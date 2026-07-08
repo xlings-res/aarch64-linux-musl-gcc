@@ -51,6 +51,9 @@ jobs:
           mkdir -p "$(dirname "$OUT")"
           cat > config.mak <<EOF
           GCC_VER = ${GCC_VER}
+          # GNU ftpmirror kept timing out on runners (gmp/mpc, 2026-07-08);
+          # kernel.org's GNU mirror is fast and stable.
+          GNU_SITE = https://mirrors.kernel.org/gnu
           TARGET = aarch64-linux-musl
           OUTPUT = ${OUT}
           # Static toolchain binaries: run on any aarch64 userland (glibc,
