@@ -79,7 +79,8 @@ jobs:
           "$GXX" -std=c++23 -fmodules-ts -c "$STDCC" -o std.o
           "$GXX" -std=c++23 -fmodules-ts m.cpp std.o -static -o hello
           file hello | grep -q "ARM aarch64"
-          ./hello
+          # cross build: the artifact is aarch64 — can't execute on this
+          # x86_64 runner; the format check above is the smoke.
 
       - name: Package + upload to release
         env:
@@ -92,5 +93,7 @@ jobs:
           tar -czf "${NAME}.tar.gz" "${NAME}"
           sha256sum "${NAME}.tar.gz" | awk '{print $1}' > "${NAME}.tar.gz.sha256"
           ls -lh "${NAME}.tar.gz"
+          gh release view "${TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1 \
+            || gh release create "${TAG}" --repo "${{ github.repository }}" --title "${TAG}" --notes "gcc ${GCC_VER} (musl-cross-make)"
           gh release upload "${TAG}" --repo "${{ github.repository }}" \
             "${NAME}.tar.gz" "${NAME}.tar.gz.sha256" --clobber

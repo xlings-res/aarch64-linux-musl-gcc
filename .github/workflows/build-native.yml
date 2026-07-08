@@ -93,5 +93,7 @@ jobs:
           tar -czf "${NAME}.tar.gz" "${NAME}"
           sha256sum "${NAME}.tar.gz" | awk '{print $1}' > "${NAME}.tar.gz.sha256"
           ls -lh "${NAME}.tar.gz"
+          gh release view "${TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1 \
+            || gh release create "${TAG}" --repo "${{ github.repository }}" --title "${TAG}" --notes "gcc ${GCC_VER} (musl-cross-make)"
           gh release upload "${TAG}" --repo "${{ github.repository }}" \
             "${NAME}.tar.gz" "${NAME}.tar.gz.sha256" --clobber
