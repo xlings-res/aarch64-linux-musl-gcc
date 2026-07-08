@@ -104,6 +104,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GCC_VER: ${{ github.event.inputs.gcc_ver }}
           TAG: ${{ github.event.inputs.tag }}
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
         run: |
           cd "$(dirname "${OUT}")"
           NAME="aarch64-linux-musl-gcc-${GCC_VER}-linux-x86_64"
@@ -114,3 +115,19 @@ jobs:
             || gh release create "${TAG}" --repo "${{ github.repository }}" --title "${TAG}" --notes "gcc ${GCC_VER} (musl-cross-make)"
           gh release upload "${TAG}" --repo "${{ github.repository }}" \
             "${NAME}.tar.gz" "${NAME}.tar.gz.sha256" --clobber
+          # GitCode mirror (CN path). Skipped without GITCODE_TOKEN.
+          if [ -n "${GITCODE_TOKEN}" ]; then
+            chmod +x "$GITHUB_WORKSPACE/tools/gtc"
+            "$GITHUB_WORKSPACE/tools/gtc" release create "${{ github.repository }}" --tag "${TAG}" --name "${TAG}" 2>/dev/null || true
+            for a in "${NAME}.tar.gz" "${NAME}.tar.gz.sha256"; do
+              for try in 1 2 3 4 5; do
+                timeout 900 "$GITHUB_WORKSPACE/tools/gtc" release upload "${{ github.repository }}" "$a" --tag "${TAG}" >/dev/null 2>&1 || true
+                code=$(curl -fsSL -o /dev/null -w '%{http_code}' -L "https://gitcode.com/${{ github.repository }}/releases/download/${TAG}/$a" 2>/dev/null)
+                [ "$code" = "200" ] && { echo "gitcode OK $a"; break; }
+                echo "gitcode retry($try) $a code=$code"; sleep 5
+              done
+            done
+          else
+            echo "GITCODE_TOKEN absent — gitcode mirror skipped (add the repo/org secret)"
+          fi
+
